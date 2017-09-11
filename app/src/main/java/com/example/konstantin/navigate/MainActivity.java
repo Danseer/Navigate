@@ -24,6 +24,10 @@ public class MainActivity extends AppCompatActivity {
     TextView tvLocationNet;
 
     private LocationManager locationManager;
+    //-------------
+    StringBuilder sbGPS = new StringBuilder();
+    StringBuilder sbNet = new StringBuilder();
+    //---------------
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,20 +43,37 @@ public class MainActivity extends AppCompatActivity {
 
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
     }
+//-------------
+    @Override
+    protected void onResume() {
+        super.onResume();
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,
+                1000 * 10, 10, locationListener);
+        locationManager.requestLocationUpdates(
+                LocationManager.NETWORK_PROVIDER, 1000 * 10, 10,
+                locationListener);
+        checkEnabled();
+    }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
+        locationManager.removeUpdates(locationListener);
+    }
+//-----------------
 
 
     public void onClickLocationSettings(View view) {
         startActivity(new Intent(
                 android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS));
     }
-
+//-------------
     private LocationListener locationListener = new LocationListener() {
         @Override
         public void onLocationChanged(Location location) {
-
+            showLocation(location);
         }
-
+//-------------------------
         @Override
         public void onStatusChanged(String provider, int status, Bundle bundle) {
             if (provider.equals(locationManager.GPS_PROVIDER))
@@ -62,8 +83,10 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @Override
-        public void onProviderEnabled(String s) {
+        public void onProviderEnabled(String provider) {
+
             checkEnabled();
+            showLocation(locationManager.getLastKnownLocation(provider));
         }
 
         @Override
@@ -76,6 +99,28 @@ public class MainActivity extends AppCompatActivity {
         tvEnabledGPS.setText("Enabled: " + locationManager.isProviderEnabled(locationManager.GPS_PROVIDER));
         tvEnabledNet.setText("Enabled: " + locationManager.isProviderEnabled(locationManager.NETWORK_PROVIDER));
     }
+
+    private void showLocation(Location location) {
+        if (location == null)
+            return;
+        if (location.getProvider().equals(LocationManager.GPS_PROVIDER)) {
+            tvLocationGPS.setText(formatLocation(location));
+        } else if (location.getProvider().equals(
+                LocationManager.NETWORK_PROVIDER)) {
+            tvLocationNet.setText(formatLocation(location));
+        }
+    }
+
+    private String formatLocation(Location location) {
+        if (location == null)
+            return "";
+        return String.format(
+                "Coordinates: lat = %1$.4f, lon = %2$.4f, time = %3$tF %3$tT",
+                location.getLatitude(), location.getLongitude(), new Date(
+                        location.getTime()));
+    }
+
+
 
 
 
