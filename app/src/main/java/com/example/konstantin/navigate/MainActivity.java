@@ -1,86 +1,110 @@
 package com.example.konstantin.navigate;
 
-//detecting location from GPS and Network
 
-import android.content.Intent;
+import android.Manifest;
+import android.app.Activity;
+import android.content.pm.PackageManager;
+import android.location.Address;
 import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
+import android.text.TextUtils;
 import android.view.View;
+import android.widget.Button;
 import android.widget.TextView;
 
-import java.util.Date;
+import java.util.ArrayList;
+import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
+import io.nlopez.smartlocation.OnLocationUpdatedListener;
+import io.nlopez.smartlocation.OnReverseGeocodingListener;
+import io.nlopez.smartlocation.SmartLocation;
+
+import io.nlopez.smartlocation.location.providers.LocationGooglePlayServicesProvider;
+
+public class MainActivity extends Activity implements OnLocationUpdatedListener {
+
+    private TextView locationText;
 
 
-    TextView tvEnabledGPS;
-    TextView tvStatusGPS;
-    TextView tvLocationGPS;
-    TextView tvEnabledNet;
-    TextView tvStatusNet;
-    TextView tvLocationNet;
+    private LocationGooglePlayServicesProvider provider;
 
-    private LocationManager locationManager;
+    private static final int LOCATION_PERMISSION_ID = 1001;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+    public void onCreate(Bundle bundle) {
+        super.onCreate(bundle);
         setContentView(R.layout.activity_main);
 
-        tvEnabledGPS = (TextView) findViewById(R.id.tvEnabledGPS);
-        tvStatusGPS = (TextView) findViewById(R.id.tvStatusGPS);
-        tvLocationGPS = (TextView) findViewById(R.id.tvLocationGPS);
-        tvEnabledNet = (TextView) findViewById(R.id.tvEnabledNet);
-        tvStatusNet = (TextView) findViewById(R.id.tvStatusNet);
-        tvLocationNet = (TextView) findViewById(R.id.tvLocationNet);
 
-        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+        Button startLocation = (Button) findViewById(R.id.start_location);
+        startLocation.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // Location permission not granted
+                if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_ID);
+                    return;
+                }
+                startLocation();
+            }
+        });
+        locationText = (TextView) findViewById(R.id.location_text);
     }
 
-
-
-    public void onClickLocationSettings(View view) {
-        startActivity(new Intent(
-                android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS));
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        if (requestCode == LOCATION_PERMISSION_ID && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            startLocation();
+        }
     }
 
-    private LocationListener locationListener = new LocationListener() {
-        @Override
-        public void onLocationChanged(Location location) {
-
-        }
-
-        @Override
-        public void onStatusChanged(String provider, int status, Bundle bundle) {
-            if (provider.equals(locationManager.GPS_PROVIDER))
-                tvStatusGPS.setText("STATUS " + String.valueOf(status));
-            else if (provider.equals(locationManager.NETWORK_PROVIDER))
-                tvStatusNet.setText("STATUS " + String.valueOf(status));
-        }
-
-        @Override
-        public void onProviderEnabled(String s) {
-            checkEnabled();
-        }
-
-        @Override
-        public void onProviderDisabled(String s) {
-            checkEnabled();
-        }
-    };
-
-    private void checkEnabled() {
-        tvEnabledGPS.setText("Enabled: " + locationManager.isProviderEnabled(locationManager.GPS_PROVIDER));
-        tvEnabledNet.setText("Enabled: " + locationManager.isProviderEnabled(locationManager.NETWORK_PROVIDER));
+    private void startLocation() {
+        provider = new LocationGooglePlayServicesProvider();
+        provider.setCheckLocationSettings(true);
+        SmartLocation smartLocation = new SmartLocation.Builder(this).logging(true).build();
+        smartLocation.location(provider).start(this);
     }
 
+    @Override
+    public void onLocationUpdated(Location location) {
+        showLocation(location);
+    }
+
+    private void showLocation(Location location) {
+        if (location != null) {
+            final String text = String.format("%.6f, %.6f",
+                    location.getLatitude(),
+                    location.getLongitude());
+            locationText.setText(text);
+            reversGeocod(location, text);
 
 
+        } else {
+            locationText.setText("Null location");
+        }
+    }
 
-
-
+    private void reversGeocod(Location location, final String text) {
+        SmartLocation.with(this).geocoding().reverse(location, new OnReverseGeocodingListener() {
+            @Override
+            public void onAddressResolved(Location original, List<Address> results) {
+                if (results.size() > 0) {
+                    Address result = results.get(0);
+                    StringBuilder builder = new StringBuilder(text);
+                    builder.append("\n[Reverse Geocoding] ");
+                    List<String> addressElements = new ArrayList<>();
+                    for (int i = 0; i <= result.getMaxAddressLineIndex(); i++) {
+                        addressElements.add(result.getAddressLine(i));
+                    }
+                    builder.append(TextUtils.join(", ", addressElements));
+                    locationText.setText(builder.toString());
+                }
+            }
+        });
+    }
 
 }
+
